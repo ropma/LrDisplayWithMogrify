@@ -4,7 +4,7 @@ Display an image from the lightroom catalog with a mogrify frame on Windows plat
 
 The border is currently fix and is not based on any EXIF data.
 
-<img src="images/DisplayWithMogrify.png" width="800" alt="Screenshot""/>
+<img src="images/DisplayWithMogrify.png" width="800" alt="Screenshot" />
 
 # Installation
 - Download the plugin
