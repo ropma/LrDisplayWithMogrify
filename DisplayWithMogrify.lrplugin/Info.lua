@@ -28,8 +28,8 @@ return {
   LrSdkVersion = 5.0,
   LrSdkMinimumVersion = 5.0,
 
-  LrToolkitIdentifier = 'de.preussmann.lightroom.DWM',
-  LrPluginName = 'Display Photo with Mogrify',
+  LrToolkitIdentifier = 'de.ropmann.lightroom.DisplayWithMorgrify',
+  LrPluginName = 'Display Photo with Mogrify Frames',
 
   LrLibraryMenuItems = {
     {
