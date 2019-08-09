@@ -35,25 +35,11 @@ local LrFileUtils = import 'LrFileUtils'
 local LrPathUtils = import 'LrPathUtils'
 local LrErrors = import 'LrErrors'
 local LrPrefs = import "LrPrefs"
-local LrLogger = import 'LrLogger'
+require "LogUtils"
 
 local prefs = LrPrefs.prefsForPlugin( nil )
-local mywriteLog = LrLogger( 'DisplayWithMogrify' )
-mywriteLog:enable( "logfile" )
 
 local fileName
-
-local function writeLog(level, text)
-  if level <= prefs.logLevel then
-    if level == 1 then
-      mywriteLog:error(text)
-    elseif level == 2 then
-      mywriteLog:info(text)
-    else
-      mywriteLog:debug(text)
-    end
-  end 
-end
 
 local function getPhotoSize( photo )
   local appWidth, appHeight = LrSystemInfo.appWindowSize()
@@ -68,14 +54,15 @@ local function exportToDisk( photo )
   local xSize, ySize = getPhotoSize(photo)
   local thumb = photo:requestJpegThumbnail(xSize, ySize, function(data, errorMsg)
     if data == nil then
-      LrDialogs.message(errorMsg, nil, nil)
+      writeLog(logLevel.error, 'exportToDisk: No thumbnail data')
+      LrDialogs.message('No thumbnail data', nil, nil)
     else
       local orgPath = photo:getRawMetadata("path")
       local leafName = LrPathUtils.leafName( orgPath )
       local leafWOExt = LrPathUtils.removeExtension( leafName )
       local tempPath = LrPathUtils.getStandardFilePath( "temp" )
       fileName = LrPathUtils.child( tempPath, leafWOExt .. "-fpoints.jpg" )
-      writeLog(3, fileName ) 
+      writeLog(logLevel.debug, 'exportToDisk: ' .. fileName ) 
 
       local localFile = io.open(fileName, "w+b")
       localFile:write(data)
@@ -88,10 +75,10 @@ local function mogrifyDraw()
   local cmdline = '\"' .. prefs.mogrifyPath .. '\" ' 
   cmdline = cmdline .. '-strokewidth 3 -stroke red -fill \"#00000000\" -draw \"roundRectangle 100,100 200,200 1,1\" '
   cmdline = cmdline .. fileName
-  writeLog(3, cmdline) 
+  writeLog(3, 'mogrifyDraw: ' .. cmdline) 
   local stat = LrTasks.execute( '\"' .. cmdline .. '\"' )
   if stat ~= 0 then
-    writeLog(1, 'Error calling: ' .. cmdline)
+    writeLog(logLevel.error, 'Error calling: ' .. cmdline)
   end
 end
 
@@ -113,6 +100,8 @@ end
 
 local function getContentViewFile( photo )
   local xSize, ySize = getPhotoSize(photo)
+
+  writeLog(logLevel.debug, 'getContentViewFile: ' .. fileName .. ' ' .. xSize .. ' ' .. ySize)
 
   local viewFactory = LrView.osFactory()
      
@@ -147,7 +136,7 @@ local function showDialog()
     end
 
     if (errorMsg ~= nil) then
-      writeLog(1, errorMsg)
+      writeLog(logLevel.error, errorMsg)
       LrDialogs.message(errorMsg, nil, nil)
       return
     else
@@ -163,6 +152,7 @@ local function showDialog()
     if fileName ~= nil then
       resultOK, errorMsg  = LrFileUtils.delete( fileName )
       if errorMsg ~= nil then
+        writeLog(logLevel.error, errMsg ) 
         LrDialogs.message(fileName .. " " .. errorMsg, nil, nil)
       end
     end

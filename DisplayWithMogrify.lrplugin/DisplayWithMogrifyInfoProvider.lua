@@ -27,10 +27,14 @@ SOFTWARE.
 local LrView = import "LrView"
 local LrPrefs = import "LrPrefs"
 local LrDialogs = import "LrDialogs"
+require "LogUtils"
 
 local bind = LrView.bind
+local prefs = LrPrefs.prefsForPlugin( nil )
 
 local function startDialog( propertyTable )
+  -- define the log file name
+  prefs.logFileName = 'DisplayWithMogrify'
 end
 
 local function endDialog( propertyTable )
@@ -40,25 +44,9 @@ local function sectionsForBottomOfDialog( viewFactory, _ )
 end
 
 local function sectionsForTopOfDialog( viewFactory, propertyTable )
-  local prefs = LrPrefs.prefsForPlugin( nil )
+  local logRow = logLevelInfoProviderSection(viewFactory) 
   return {
-    {
-      title = "Logging",
-      viewFactory:row {
-        bind_to_object = prefs,
-        spacing = viewFactory:control_spacing(),
-        viewFactory:popup_menu {
-          title = "Logging level",
-          value = bind 'logLevel',
-          items = {
-            { title = "Error", value = 1},
-            { title = "Info", value = 2},
-            { title = "Debug", value = 3},
-          }
-        },
-      },
-    },
-
+    logRow,
     {
       title = "Mogrify",
       viewFactory:row {
