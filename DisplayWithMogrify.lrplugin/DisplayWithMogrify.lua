@@ -41,17 +41,45 @@ local prefs = LrPrefs.prefsForPlugin( nil )
 
 local fileName
 
-local function getPhotoSize( photo )
-  local appWidth, appHeight = LrSystemInfo.appWindowSize()
-  local photoWidth = appWidth * .7
-  local photoHeight = appHeight * .7
-  photoWidth  = math.floor( photoWidth )
-  photoHeight = math.floor( photoHeight )
+local function getPhotoSize(photo)
+  local sizeString = photo:getFormattedMetadata( "croppedDimensions" )
+  local x, y = sizeString:match("([^ ]+) x ([^ ]+)")
+  local photoCropWidth = tonumber(x)
+  local photoCropHeight = tonumber(y)
+  local photoWidth 
+  local photoHeight
+
+  local winWidth, winHeight = LrSystemInfo.appWindowSize()
+  winWidth = winWidth * .8
+  winHeight = winHeight * .8
+
+  writeLog(logLevel.debug, 'getPhotoSize: cropSize' .. photoCropWidth .. ' ' .. photoCropHeight)
+  writeLog(logLevel.debug, 'getPhotoSize: winSize' .. winWidth .. ' ' .. winHeight)
+  
+  if (photoCropWidth > photoCropHeight) then
+    photoWidth = math.min(photoCropWidth, winWidth)
+    photoHeight = photoCropHeight/photoCropWidth * photoWidth
+    if photoCropHeight > winHeight then
+        photoHeight = math.min(photoCropHeight, winHeight)
+        photoWidth = photoCropWidth/photoCropHeight * photoHeight
+    end
+  else
+    photoHeight = math.min(photoCropHeight, winHeight)
+    photoWidth = photoCropWidth/photoCropHeight * photoHeight
+    if photoWidth > winHeight then
+        photoWidth = math.min(photoCropWidth, winWidth)
+        photoHeight = photoCropHeight/photoCropWidth * photoWidth
+    end
+  end
+
+  photoWidth  = math.floor(photoWidth)
+  photoHeight = math.floor(photoHeight)
+  
+  writeLog(logLevel.debug, 'getPhotoSize: thumbnailSize' .. photoWidth .. ' ' .. photoHeight)
   return photoWidth, photoHeight
 end
 
-local function exportToDisk( photo )
-  local xSize, ySize = getPhotoSize(photo)
+local function exportToDisk(photo, xSize, ySize)
   local thumb = photo:requestJpegThumbnail(xSize, ySize, function(data, errorMsg)
     if data == nil then
       writeLog(logLevel.error, 'exportToDisk: No thumbnail data')
@@ -71,6 +99,17 @@ local function exportToDisk( photo )
   end)
 end
 
+local function mogrifyResize(photo, xSize, ySize)
+  local cmdline = '\"' .. prefs.mogrifyPath .. '\" ' 
+  cmdline = cmdline .. '-resize ' .. xSize .. 'x' .. ySize .. ' ' .. fileName
+  writeLog(3, 'mogrifyResize: ' .. cmdline) 
+  local stat = LrTasks.execute( '\"' .. cmdline .. '\"' )
+  if stat ~= 0 then
+    writeLog(logLevel.error, 'Error calling: ' .. cmdline)
+  end
+end
+
+
 local function mogrifyDraw()
   local cmdline = '\"' .. prefs.mogrifyPath .. '\" ' 
   cmdline = cmdline .. '-strokewidth 3 -stroke red -fill \"#00000000\" -draw \"roundRectangle 100,100 200,200 1,1\" '
@@ -82,25 +121,7 @@ local function mogrifyDraw()
   end
 end
 
-local function getContentViewDirect( photo )
-  local xSize, ySize = getPhotoSize(photo)
-
-  local viewFactory = LrView.osFactory()
-  local photoToDisplay = viewFactory:catalog_photo {
-    width  = xSize, 
-    height = ySize,
-    photo  = photo,
-  }
-
-  local photoView = viewFactory:view {
-    photoToDisplay,
-  }
-  return photoView
-end
-
-local function getContentViewFile( photo )
-  local xSize, ySize = getPhotoSize(photo)
-
+local function getContentViewFile( photo, xSize, ySize )
   writeLog(logLevel.debug, 'getContentViewFile: ' .. fileName .. ' ' .. xSize .. ' ' .. ySize)
 
   local viewFactory = LrView.osFactory()
@@ -127,10 +148,12 @@ local function showDialog()
     local content     = nil
 
     if (targetPhoto:checkPhotoAvailability()) then
-      exportToDisk( targetPhoto )
+      local xSize, ySize = getPhotoSize(targetPhoto)
+      exportToDisk( targetPhoto, xSize, ySize)
+      mogrifyResize(targetPhoto, xSize, ySize)
       mogrifyDraw()
       --content = getContentViewDirect( targetPhoto )
-      content = getContentViewFile( targetPhoto )
+      content = getContentViewFile( targetPhoto, xSize, ySize )
     else
       errorMsg = "Photo is not available"
     end
