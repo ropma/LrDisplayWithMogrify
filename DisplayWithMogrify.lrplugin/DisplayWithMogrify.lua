@@ -29,17 +29,10 @@ local LrFunctionContext = import 'LrFunctionContext'
 local LrApplication = import 'LrApplication'
 local LrDialogs = import 'LrDialogs'
 local LrView = import 'LrView'
-local LrColor = import 'LrColor'
 local LrTasks = import 'LrTasks'
-local LrFileUtils = import 'LrFileUtils'
-local LrPathUtils = import 'LrPathUtils'
-local LrErrors = import 'LrErrors'
-local LrPrefs = import "LrPrefs"
+
 require "LogUtils"
-
-local prefs = LrPrefs.prefsForPlugin( nil )
-
-local fileName
+require "MogrifyUtils"
 
 local function getPhotoSize(photo)
   local sizeString = photo:getFormattedMetadata( "croppedDimensions" )
@@ -53,8 +46,8 @@ local function getPhotoSize(photo)
   winWidth = winWidth * .8
   winHeight = winHeight * .8
 
-  writeLog(logLevel.debug, 'getPhotoSize: cropSize' .. photoCropWidth .. ' ' .. photoCropHeight)
-  writeLog(logLevel.debug, 'getPhotoSize: winSize' .. winWidth .. ' ' .. winHeight)
+  writeLog(logLevel.debug, 'getPhotoSize: cropSize ' .. photoCropWidth .. ' ' .. photoCropHeight)
+  writeLog(logLevel.debug, 'getPhotoSize: winSize ' .. winWidth .. ' ' .. winHeight)
   
   if (photoCropWidth > photoCropHeight) then
     photoWidth = math.min(photoCropWidth, winWidth)
@@ -75,53 +68,12 @@ local function getPhotoSize(photo)
   photoWidth  = math.floor(photoWidth)
   photoHeight = math.floor(photoHeight)
   
-  writeLog(logLevel.debug, 'getPhotoSize: thumbnailSize' .. photoWidth .. ' ' .. photoHeight)
+  writeLog(logLevel.debug, 'getPhotoSize: thumbnailSize ' .. photoWidth .. ' ' .. photoHeight)
   return photoWidth, photoHeight
 end
 
-local function exportToDisk(photo, xSize, ySize)
-  local thumb = photo:requestJpegThumbnail(xSize, ySize, function(data, errorMsg)
-    if data == nil then
-      writeLog(logLevel.error, 'exportToDisk: No thumbnail data')
-      LrDialogs.message('No thumbnail data', nil, nil)
-    else
-      local orgPath = photo:getRawMetadata("path")
-      local leafName = LrPathUtils.leafName( orgPath )
-      local leafWOExt = LrPathUtils.removeExtension( leafName )
-      local tempPath = LrPathUtils.getStandardFilePath( "temp" )
-      fileName = LrPathUtils.child( tempPath, leafWOExt .. "-fpoints.jpg" )
-      writeLog(logLevel.debug, 'exportToDisk: ' .. fileName ) 
 
-      local localFile = io.open(fileName, "w+b")
-      localFile:write(data)
-      localFile:close()
-    end
-  end)
-end
-
-local function mogrifyResize(photo, xSize, ySize)
-  local cmdline = '\"' .. prefs.mogrifyPath .. '\" ' 
-  cmdline = cmdline .. '-resize ' .. xSize .. 'x' .. ySize .. ' ' .. fileName
-  writeLog(3, 'mogrifyResize: ' .. cmdline) 
-  local stat = LrTasks.execute( '\"' .. cmdline .. '\"' )
-  if stat ~= 0 then
-    writeLog(logLevel.error, 'Error calling: ' .. cmdline)
-  end
-end
-
-
-local function mogrifyDraw()
-  local cmdline = '\"' .. prefs.mogrifyPath .. '\" ' 
-  cmdline = cmdline .. '-strokewidth 3 -stroke red -fill \"#00000000\" -draw \"roundRectangle 100,100 200,200 1,1\" '
-  cmdline = cmdline .. fileName
-  writeLog(3, 'mogrifyDraw: ' .. cmdline) 
-  local stat = LrTasks.execute( '\"' .. cmdline .. '\"' )
-  if stat ~= 0 then
-    writeLog(logLevel.error, 'Error calling: ' .. cmdline)
-  end
-end
-
-local function getContentViewFile( photo, xSize, ySize )
+local function getContentViewFile( fileName, xSize, ySize )
   writeLog(logLevel.debug, 'getContentViewFile: ' .. fileName .. ' ' .. xSize .. ' ' .. ySize)
 
   local viewFactory = LrView.osFactory()
@@ -149,11 +101,13 @@ local function showDialog()
 
     if (targetPhoto:checkPhotoAvailability()) then
       local xSize, ySize = getPhotoSize(targetPhoto)
-      exportToDisk( targetPhoto, xSize, ySize)
-      mogrifyResize(targetPhoto, xSize, ySize)
-      mogrifyDraw()
-      --content = getContentViewDirect( targetPhoto )
-      content = getContentViewFile( targetPhoto, xSize, ySize )
+      local fileName = MogrifyUtils.createDiskImage(targetPhoto, xSize, ySize)
+      local focuspointTable = {
+        { x = '100', y = '100' },
+        { x = '400', y = '500' },
+      }
+      MogrifyUtils.drawFocusPoints(focuspointTable)
+      content = getContentViewFile(fileName, xSize, ySize )
     else
       errorMsg = "Photo is not available"
     end
